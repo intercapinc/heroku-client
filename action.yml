@@ -1,0 +1,61 @@
+name: 'heroku-client'
+
+inputs:
+    endpoint:
+        required: true
+        description: |
+            Heroku REST API Endpoint.
+            Ex: 'teams/apps'.
+
+    method:
+        required: true
+        default: ~
+        description: |
+            HTTP verb for the request.
+            Ex: 'PUT'.
+
+    data:
+        required: true
+        default: ~
+        description: |
+            Data to be sent with the request.
+            Ex: 'quoi=donc'.
+
+    token:
+        required: true
+        description: |
+            Heroku API Key.
+            Ex: 'asdf1234'.
+
+    expected:
+        required: true
+        default: ~
+        description: |
+            Expected status code.
+            Ex: '200'.
+
+runs:
+    using: 'composite'
+
+    steps:
+        - name: 'Make Heroku API request'
+          shell: 'bash'
+          run: |
+              http \
+                  --auth-type bearer --auth '${{ inputs.token }}' \
+                  --headers --ignore-stdin --timeout=5.0 \
+                  ${{ inputs.method }} \
+                  'https://api.heroku.com/${{ inputs.endpoint }}' \
+                  'Accept: application/vnd.heroku+json; version=3' \
+                  ${{ inputs.data }} \
+              | grep HTTP/ \
+              | cut -d ' ' -f 2 \
+              | xargs -I % echo '::set-output name=actual::%'
+          id: 'request'
+
+        - name: "Verify request's status response code"
+          shell: 'bash'
+          run: |
+              echo 'Expecting ${{ steps.request.outputs.actual }} to be contained by ${{ inputs.expected }}'
+              exit 1
+          if: '!contains(inputs.expected, steps.request.outputs.actual)'
